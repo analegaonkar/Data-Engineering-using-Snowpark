@@ -73,15 +73,15 @@ def main(session: Session) -> str:
     dag_op = DAGOperation(schema)
 
     # Define the DAG
-    dag_name = "DEV_DAG"
+    dag_name = "DEV_DAG1"
     dag = DAG(dag_name, schedule=timedelta(days=1), warehouse=warehouse_name)
     with dag:
         dag_task1 = DAGTask("LOAD_ORDER_DETAIL_TASK", definition="CALL LOAD_EXCEL_WORKSHEET_TO_TABLE_SP(BUILD_SCOPED_FILE_URL(@FROSTBYTE_RAW_STAGE, 'intro/order_detail.xlsx'), 'order_detail', 'ORDER_DETAIL')", warehouse=warehouse_name)
         dag_task2 = DAGTask("LOAD_LOCATION_TASK", definition="CALL LOAD_EXCEL_WORKSHEET_TO_TABLE_SP(BUILD_SCOPED_FILE_URL(@FROSTBYTE_RAW_STAGE, 'intro/location.xlsx'), 'location', 'LOCATION')", warehouse=warehouse_name)
         dag_task3 = DAGTask("LOAD_DAILY_CITY_METRICS_TASK", definition="CALL LOAD_DAILY_CITY_METRICS_SP()", warehouse=warehouse_name)
         # means that dag_task3 is dependant on dag_task1 and dag_task2
-        dag_task3 >> dag_task1
-        dag_task3 >> dag_task2
+        dag_task1 >> dag_task3
+        dag_task2 >> dag_task3
 
     # Create the DAG in Snowflake
     dag_op.deploy(dag, mode="orreplace")
@@ -100,14 +100,19 @@ def main(session: Session) -> str:
 # For local debugging
 # Be aware you may need to type-convert arguments if you add input parameters
 if __name__ == '__main__':
-    import os, sys
+    import os, sys, json
     # Add the utils package to our path and import the snowpark_utils function
     current_dir = os.getcwd()
     parent_dir = os.path.dirname(current_dir)
     sys.path.append(parent_dir)
 
-    from utils import snowpark_utils
-    session = snowpark_utils.get_snowpark_session()
+    #from utils import snowpark_utils
+    #session = snowpark_utils.get_snowpark_session()
+
+    # Create Snowflake Session object
+    connection_parameters = json.load(open('connection.json'))
+    session = Session.builder.configs(connection_parameters).create()
+    #session.sql_simplifier_enabled = True
 
     if len(sys.argv) > 1:
         print(main(session, *sys.argv[1:]))  # type: ignore
@@ -115,3 +120,11 @@ if __name__ == '__main__':
         print(main(session))  # type: ignore
 
     session.close()
+
+
+#alter TASK DEV_DAG1 suspend;
+#drop TASK DEV_DAG1 ;
+#drop TASK DEV_DAG1$LOAD_DAILY_CITY_METRICS_TASK ;
+#drop TASK DEV_DAG1$LOAD_LOCATION_TASK;
+#drop TASK DEV_DAG1$LOAD_ORDER_DETAIL_TASK ;
+#show tasks
